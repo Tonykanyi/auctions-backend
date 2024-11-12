@@ -1,5 +1,3 @@
-# app/models.py
-
 from . import db
 from datetime import datetime
 
@@ -10,27 +8,37 @@ class User(db.Model):
     password_hash = db.Column(db.String(128), nullable=False)
     email = db.Column(db.String(100), nullable=False, unique=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    role=db.Column(db.String(50), nullable=False)
+    role = db.Column(db.String(50), nullable=False)
+
+    # Relationships
+    items = db.relationship('Item', backref='user', lazy=True)
+    bids = db.relationship('Bid', backref='user', lazy=True)
+    reports = db.relationship('Report', backref='user', lazy=True)
+    audit_logs = db.relationship('AuditLog', backref='user', lazy=True)
+    notifications = db.relationship('Notification', backref='user', lazy=True)
 
 
 class Item(db.Model):
     __tablename__ = 'items'
     item_id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
-    image_url = db.Column(db.String(200 ), db.ForeignKey('images.image_url'), backref='items', nullable=False)
+    image_url = db.Column(db.String(200), db.ForeignKey('images.image_url'), nullable=False)
     description = db.Column(db.Text, nullable=False)
     starting_price = db.Column(db.Float, nullable=False)
     category = db.Column(db.String(50), nullable=False)
     posted_by = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
 
-class image(db.Model):
+    # Relationships
+    auctions = db.relationship('Auction', backref='item', lazy=True)
+    images = db.relationship('Image', backref='item', lazy=True)
+
+
+class Image(db.Model):
     __tablename__ = 'images'
     image_id = db.Column(db.Integer, primary_key=True)
     image_url = db.Column(db.String(200), nullable=False)
     item_id = db.Column(db.Integer, db.ForeignKey('items.item_id'), nullable=False)
 
-    #relationships
-    item = db.relationship('Item', backref='images')
 
 class Auction(db.Model):
     __tablename__ = 'auctions'
@@ -40,6 +48,11 @@ class Auction(db.Model):
     end_time = db.Column(db.DateTime, nullable=False)
     status = db.Column(db.String(20), nullable=False)
 
+    # Relationships
+    bids = db.relationship('Bid', backref='auction', lazy=True)
+    bid_histories = db.relationship('BidHistory', backref='auction', lazy=True)
+
+
 class Bid(db.Model):
     __tablename__ = 'bids'
     bid_id = db.Column(db.Integer, primary_key=True)
@@ -48,6 +61,8 @@ class Bid(db.Model):
     bidder_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
     auction_id = db.Column(db.Integer, db.ForeignKey('auctions.auction_id'), nullable=False)
 
+    # Relationships
+    bid_histories = db.relationship('BidHistory', backref='bid', lazy=True)
 
 
 class BidHistory(db.Model):
@@ -57,12 +72,14 @@ class BidHistory(db.Model):
     auction_id = db.Column(db.Integer, db.ForeignKey('auctions.auction_id'), nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
+
 class Report(db.Model):
     __tablename__ = 'reports'
     report_id = db.Column(db.Integer, primary_key=True)
     report_type = db.Column(db.String(50), nullable=False)
     generated_by = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
     generated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 
 class AuditLog(db.Model):
     __tablename__ = 'audit_logs'
