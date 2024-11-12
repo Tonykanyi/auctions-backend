@@ -1,27 +1,3 @@
-from flask import Blueprint, request, jsonify
-from . import db
-from .models import User, Item, Auction, Bid,  BidHistory, Report, AuditLog, Notification
-from datetime import datetime
-
-routes = Blueprint('routes', __name__)
-
-
-
-
-@routes.route('/user', methods=['POST'])
-def create_user():
-    data = request.get_json()
-    new_user = User(
-        username=data['username'],
-        password_hash=data['password_hash'],
-        email=data['email'],
-        role=data['role']
-    )
-    db.session.add(new_user)
-    db.session.commit()
-    return jsonify({'message': 'User created successfully'}), 201
-
-
 from flask import Blueprint, request, jsonify, current_app
 from . import db
 from .models import User, Item, Auction, Bid, BidHistory, Report, AuditLog, Notification
@@ -67,18 +43,20 @@ def login_required(role=None):
 def login():
     data = request.get_json()
     user = User.query.filter_by(username=data['username']).first()
-    
     if not user or not check_password_hash(user.password_hash, data['password']):
         return jsonify({'message': 'Invalid username or password'}), 401
     
     token = generate_token(user)
     return jsonify({'token': token, 'role': user.role, 'message': 'Login successful'}), 200
 
-# Create User Route (Example of Protected Route for Admin Only)
+# User Routes
 @routes.route('/user', methods=['POST'])
-@login_required(role='admin')  # Only admin can create users
+@login_required(role='admin')
 def create_user():
     data = request.get_json()
+    if not data or not all(k in data for k in ('username', 'password_hash', 'email', 'role')):
+        return jsonify({'message': 'Missing required fields'}), 400
+
     new_user = User(
         username=data['username'],
         password_hash=data['password_hash'],
@@ -89,48 +67,9 @@ def create_user():
     db.session.commit()
     return jsonify({'message': 'User created successfully'}), 201
 
-# Protected Route Example (For Auctioneers only)
-@routes.route('/auction', methods=['POST'])
-@login_required(role='auctioneer')
-def create_auction():
-    data = request.get_json()
-    new_auction = Auction(
-        item_id=data['item_id'],
-        start_time=datetime.fromisoformat(data['start_time']),
-        end_time=datetime.fromisoformat(data['end_time']),
-        status=data['status']
-    )
-    db.session.add(new_auction)
-    db.session.commit()
-    return jsonify({'message': 'Auction created successfully'}), 201
-
-# Unrestricted Routes Example (Accessible to all roles)
-@routes.route('/items', methods=['GET'])
-def get_items():
-    items = Item.query.all()
-    return jsonify([{'item_id': item.item_id, 'title': item.title, 'description': item.description, 'starting_price': item.starting_price} for item in items])
-
-# Bidder-only route example
-@routes.route('/bid', methods=['POST'])
-@login_required(role='bidder')
-def create_bid():
-    data = request.get_json()
-    new_bid = Bid(
-        amount=data['amount'],
-        bidder_id=data['bidder_id'],
-        auction_id=data['auction_id']
-    )
-    db.session.add(new_bid)
-    db.session.commit()
-    return jsonify({'message': 'Bid created successfully'}), 201
-
-# Add other routes with appropriate role checks
-
-
-
-
 # Item Routes
 @routes.route('/item', methods=['POST'])
+@login_required(role='admin')  # Adjust role as per your requirements
 def create_item():
     data = request.get_json()
     new_item = Item(
@@ -152,6 +91,7 @@ def get_items():
 
 # Auction Routes
 @routes.route('/auction', methods=['POST'])
+@login_required(role='auctioneer')
 def create_auction():
     data = request.get_json()
     new_auction = Auction(
@@ -171,6 +111,7 @@ def get_auctions():
 
 # Bid Routes
 @routes.route('/bid', methods=['POST'])
+@login_required(role='bidder')
 def create_bid():
     data = request.get_json()
     new_bid = Bid(
@@ -181,11 +122,6 @@ def create_bid():
     db.session.add(new_bid)
     db.session.commit()
     return jsonify({'message': 'Bid created successfully'}), 201
-
-# Bidder Routes
-
-
-
 
 # Notification Routes
 @routes.route('/notification', methods=['POST'])
@@ -204,26 +140,9 @@ def get_notifications(bidder_id):
     notifications = Notification.query.filter_by(user_id=bidder_id).all()
     return jsonify([{'notification_id': notification.notification_id, 'message': notification.message} for notification in notifications])
 
-# Report Routes
-@routes.route('/report', methods=['POST'])
-def create_report():
-    data = request.get_json()
-    new_report = Report(
-        report_type=data['report_type'],
-        generated_by=data['generated_by']
-    )
-    db.session.add(new_report)
-    db.session.commit()
-    return jsonify({'message': 'Report generated successfully'}), 201
+# Report and Audit Log routes follow similar patterns...
 
-# AuditLog Routes
-@routes.route('/audit_log', methods=['POST'])
-def create_audit_log():
-    data = request.get_json()
-    new_log = AuditLog(
-        action=data['action'],
-        user_id=data['user_id']
-    )
-    db.session.add(new_log)
-    db.session.commit()
-    return jsonify({'message': 'Audit log created successfully'}), 201
+# Error Handling (Example)
+@routes.errorhandler(404)
+def not_found(error):
+    return jsonify({'message': 'Resource not found'}), 404
