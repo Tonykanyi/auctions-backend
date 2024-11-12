@@ -1,39 +1,133 @@
 from flask import Blueprint, request, jsonify
 from . import db
-from .models import PlatformOwner, AuctionCompany, Item, Auction, Bid, Bidder, BidHistory, Report, AuditLog, Notification
+from .models import User, Item, Auction, Bid,  BidHistory, Report, AuditLog, Notification
 from datetime import datetime
 
 routes = Blueprint('routes', __name__)
 
-# PlatformOwner Routes
-@routes.route('/platform_owner', methods=['POST'])
-def create_platform_owner():
+
+
+
+@routes.route('/user', methods=['POST'])
+def create_user():
     data = request.get_json()
-    new_owner = PlatformOwner(
+    new_user = User(
         username=data['username'],
         password_hash=data['password_hash'],
-        email=data['email']
+        email=data['email'],
+        role=data['role']
     )
-    db.session.add(new_owner)
+    db.session.add(new_user)
     db.session.commit()
-    return jsonify({'message': 'Platform owner created successfully'}), 201
+    return jsonify({'message': 'User created successfully'}), 201
 
-# AuctionCompany Routes
-@routes.route('/auction_company', methods=['POST'])
-def create_auction_company():
+
+from flask import Blueprint, request, jsonify, current_app
+from . import db
+from .models import User, Item, Auction, Bid, BidHistory, Report, AuditLog, Notification
+from datetime import datetime, timedelta
+from werkzeug.security import check_password_hash
+import jwt
+from functools import wraps
+
+routes = Blueprint('routes', __name__)
+
+# Utility function to create a JWT token
+def generate_token(user):
+    payload = {
+        'user_id': user.user_id,
+        'username': user.username,
+        'role': user.role,
+        'exp': datetime.utcnow() + timedelta(hours=24)  # Token expires in 24 hours
+    }
+    return jwt.encode(payload, current_app.config['SECRET_KEY'], algorithm='HS256')
+
+# Decorator to require authentication and check roles
+def login_required(role=None):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            token = request.headers.get('Authorization')
+            if not token:
+                return jsonify({'message': 'Token is missing!'}), 401
+            try:
+                decoded_token = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
+                if role and decoded_token['role'] != role:
+                    return jsonify({'message': f'Access denied for {decoded_token["role"]} role'}), 403
+            except jwt.ExpiredSignatureError:
+                return jsonify({'message': 'Token has expired!'}), 401
+            except jwt.InvalidTokenError:
+                return jsonify({'message': 'Invalid token!'}), 401
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+# Login route
+@routes.route('/login', methods=['POST'])
+def login():
     data = request.get_json()
-    new_company = AuctionCompany(
-        name=data['name'],
-        contact_email=data['contact_email']
-    )
-    db.session.add(new_company)
-    db.session.commit()
-    return jsonify({'message': 'Auction company created successfully'}), 201
+    user = User.query.filter_by(username=data['username']).first()
+    
+    if not user or not check_password_hash(user.password_hash, data['password']):
+        return jsonify({'message': 'Invalid username or password'}), 401
+    
+    token = generate_token(user)
+    return jsonify({'token': token, 'role': user.role, 'message': 'Login successful'}), 200
 
-@routes.route('/auction_company', methods=['GET'])
-def get_auction_companies():
-    companies = AuctionCompany.query.all()
-    return jsonify([{'company_id': company.company_id, 'name': company.name, 'contact_email': company.contact_email} for company in companies])
+# Create User Route (Example of Protected Route for Admin Only)
+@routes.route('/user', methods=['POST'])
+@login_required(role='admin')  # Only admin can create users
+def create_user():
+    data = request.get_json()
+    new_user = User(
+        username=data['username'],
+        password_hash=data['password_hash'],
+        email=data['email'],
+        role=data['role']
+    )
+    db.session.add(new_user)
+    db.session.commit()
+    return jsonify({'message': 'User created successfully'}), 201
+
+# Protected Route Example (For Auctioneers only)
+@routes.route('/auction', methods=['POST'])
+@login_required(role='auctioneer')
+def create_auction():
+    data = request.get_json()
+    new_auction = Auction(
+        item_id=data['item_id'],
+        start_time=datetime.fromisoformat(data['start_time']),
+        end_time=datetime.fromisoformat(data['end_time']),
+        status=data['status']
+    )
+    db.session.add(new_auction)
+    db.session.commit()
+    return jsonify({'message': 'Auction created successfully'}), 201
+
+# Unrestricted Routes Example (Accessible to all roles)
+@routes.route('/items', methods=['GET'])
+def get_items():
+    items = Item.query.all()
+    return jsonify([{'item_id': item.item_id, 'title': item.title, 'description': item.description, 'starting_price': item.starting_price} for item in items])
+
+# Bidder-only route example
+@routes.route('/bid', methods=['POST'])
+@login_required(role='bidder')
+def create_bid():
+    data = request.get_json()
+    new_bid = Bid(
+        amount=data['amount'],
+        bidder_id=data['bidder_id'],
+        auction_id=data['auction_id']
+    )
+    db.session.add(new_bid)
+    db.session.commit()
+    return jsonify({'message': 'Bid created successfully'}), 201
+
+# Add other routes with appropriate role checks
+
+
+
 
 # Item Routes
 @routes.route('/item', methods=['POST'])
@@ -54,7 +148,7 @@ def create_item():
 @routes.route('/items', methods=['GET'])
 def get_items():
     items = Item.query.all()
-    return jsonify([{'item_id': item.item_id, 'title': item.title, 'description': item.description, 'starting_price': item.starting_price} for item in items])
+    return jsonify([{'item_id': item.item_id, 'title': item.title, 'description': item.description, 'image_url':item.image_url, 'starting_price': item.starting_price} for item in items])
 
 # Auction Routes
 @routes.route('/auction', methods=['POST'])
@@ -89,22 +183,9 @@ def create_bid():
     return jsonify({'message': 'Bid created successfully'}), 201
 
 # Bidder Routes
-@routes.route('/bidder', methods=['POST'])
-def create_bidder():
-    data = request.get_json()
-    new_bidder = Bidder(
-        username=data['username'],
-        password_hash=data['password_hash'],
-        email=data['email']
-    )
-    db.session.add(new_bidder)
-    db.session.commit()
-    return jsonify({'message': 'Bidder created successfully'}), 201
 
-@routes.route('/bidders', methods=['GET'])
-def get_bidders():
-    bidders = Bidder.query.all()
-    return jsonify([{'bidder_id': bidder.bidder_id, 'username': bidder.username} for bidder in bidders])
+
+
 
 # Notification Routes
 @routes.route('/notification', methods=['POST'])
