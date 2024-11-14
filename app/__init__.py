@@ -13,9 +13,15 @@ def create_app():
     db.init_app(app)
     JWTManager(app)
 
-    # Import and register blueprints from routes.py
-    from .routes import auth_blueprint, user_blueprint, item_blueprint, auction_blueprint, bid_blueprint, notification_blueprint
+    # Import and register blueprints from individual route files
+    from .routes.auth_routes import auth_blueprint
+    from .routes.user_routes import user_blueprint
+    from .routes.item_routes import item_blueprint
+    from .routes.auction_routes import auction_blueprint
+    from .routes.bid_routes import bid_blueprint
+    from .routes.notification_routes import notification_blueprint
 
+    # Register blueprints with URL prefixes
     app.register_blueprint(auth_blueprint, url_prefix='/auth')
     app.register_blueprint(user_blueprint, url_prefix='/users')
     app.register_blueprint(item_blueprint, url_prefix='/items')

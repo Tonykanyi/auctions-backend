@@ -22,7 +22,6 @@ class Item(db.Model):
     __tablename__ = 'items'
     item_id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
-    image_url = db.Column(db.String(200), db.ForeignKey('images.image_url'), nullable=False)
     description = db.Column(db.Text, nullable=False)
     starting_price = db.Column(db.Float, nullable=False)
     category = db.Column(db.String(50), nullable=False)
