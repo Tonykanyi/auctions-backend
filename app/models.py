@@ -24,13 +24,21 @@ class Item(db.Model):
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
     starting_price = db.Column(db.Float, nullable=False)
-    category = db.Column(db.String(50), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey('categories.category_id'), nullable=False)
     posted_by = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
 
     # Relationships
     auctions = db.relationship('Auction', backref='item', lazy=True)
     images = db.relationship('Image', backref='item', lazy=True)
+class category(db.Model):
+    __tablename__ = 'categories'
+    category_id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # Relationships
+    items = db.relationship('Item', backref='category', lazy=True)
 
 class Image(db.Model):
     __tablename__ = 'images'

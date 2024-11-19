@@ -4,10 +4,11 @@ from ..models import User
 from .. import db
 from ..utils import login_required  # Import from utils instead of auth_routes
 
+
+
 user_blueprint = Blueprint('user', __name__)
 
 class UserAPI(MethodView):
-    decorators = [login_required(role='admin')]
 
     def post(self):
         data = request.get_json()
